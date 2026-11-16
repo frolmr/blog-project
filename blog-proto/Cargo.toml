@@ -1,0 +1,6 @@
+[package]
+name = "blog-proto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

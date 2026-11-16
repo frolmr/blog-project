@@ -1,0 +1,10 @@
+# Rust build artifacts
+/target
+
+# Trunk / wasm-pack output
+/blog-wasm/dist
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
