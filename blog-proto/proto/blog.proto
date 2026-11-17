@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package blog.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+service UserService {
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+message User {
+    int64 id = 1;
+    string username = 2;
+    string email = 3;
+    google.protobuf.Timestamp created_at = 4;
+}
+
+message RegisterRequest {
+    string username = 1;
+    string email = 2;
+    string password = 3;
+}
+
+message RegisterResponse {
+    User user = 1;
+    string access_token = 2;
+}
+
+message LoginRequest {
+    // Username or email address.
+    string identifier = 1;
+    string password = 2;
+}
+
+message LoginResponse {
+    User user = 1;
+    string access_token = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Posts
+// ---------------------------------------------------------------------------
+
+service PostService {
+    rpc CreatePost(CreatePostRequest) returns (Post);
+    rpc GetPost(GetPostRequest) returns (Post);
+    rpc UpdatePost(UpdatePostRequest) returns (Post);
+    rpc DeletePost(DeletePostRequest) returns (google.protobuf.Empty);
+    rpc ListPosts(ListPostsRequest) returns (ListPostsResponse);
+}
+
+message Post {
+    int64 id = 1;
+    string title = 2;
+    string content = 3;
+    int64 author_id = 4;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp updated_at = 6;
+}
+
+message CreatePostRequest {
+    string title = 1;
+    string content = 2;
+}
+
+message GetPostRequest { int64 id = 1; }
+
+message UpdatePostRequest {
+    int64 id = 1;
+    optional string title = 2;
+    optional string content = 3;
+}
+
+message DeletePostRequest { int64 id = 1; }
+
+message ListPostsRequest {
+    uint32 page = 1;
+    uint32 page_size = 2;
+}
+
+message ListPostsResponse {
+    repeated Post posts = 1;
+    uint32 total = 2;
+    uint32 page = 3;
+    uint32 page_size = 4;
+}

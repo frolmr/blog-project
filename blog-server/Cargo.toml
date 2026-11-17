@@ -4,3 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+blog-proto.workspace = true
+
+actix-web.workspace = true
+env_logger.workspace = true
+log.workspace = true
+serde.workspace = true
+utoipa.workspace = true
+utoipa-swagger-ui.workspace = true
