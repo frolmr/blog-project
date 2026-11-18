@@ -5,6 +5,7 @@ use crate::infrastructure::jwt::MIN_SECRET_LENGTH;
 pub struct Config {
     pub http_addr: String,
     pub grpc_addr: String,
+    pub database_url: String,
     pub jwt_secret: String,
     pub cors_allowed_origin: Option<String>,
 }
@@ -18,9 +19,16 @@ impl Config {
             "JWT_SECRET must be at least {MIN_SECRET_LENGTH} characters long"
         );
 
+        let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+        ensure!(
+            !database_url.trim().is_empty(),
+            "DATABASE_URL must not be empty"
+        );
+
         Ok(Self {
             http_addr: env_or("BLOG_HTTP_ADDR", "127.0.0.1:8080"),
             grpc_addr: env_or("BLOG_GRPC_ADDR", "127.0.0.1:50051"),
+            database_url,
             jwt_secret,
             cors_allowed_origin: std::env::var("CORS_ALLOWED_ORIGIN")
                 .ok()

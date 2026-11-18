@@ -6,13 +6,22 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 // ---------------------------------------------------------------------------
-// Users
+// Service
 // ---------------------------------------------------------------------------
 
-service UserService {
+service BlogService {
     rpc Register(RegisterRequest) returns (RegisterResponse);
     rpc Login(LoginRequest) returns (LoginResponse);
+    rpc CreatePost(CreatePostRequest) returns (Post);
+    rpc GetPost(GetPostRequest) returns (Post);
+    rpc UpdatePost(UpdatePostRequest) returns (Post);
+    rpc DeletePost(DeletePostRequest) returns (google.protobuf.Empty);
+    rpc ListPosts(ListPostsRequest) returns (ListPostsResponse);
 }
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
 
 message User {
     int64 id = 1;
@@ -46,14 +55,6 @@ message LoginResponse {
 // ---------------------------------------------------------------------------
 // Posts
 // ---------------------------------------------------------------------------
-
-service PostService {
-    rpc CreatePost(CreatePostRequest) returns (Post);
-    rpc GetPost(GetPostRequest) returns (Post);
-    rpc UpdatePost(UpdatePostRequest) returns (Post);
-    rpc DeletePost(DeletePostRequest) returns (google.protobuf.Empty);
-    rpc ListPosts(ListPostsRequest) returns (ListPostsResponse);
-}
 
 message Post {
     int64 id = 1;

@@ -3,7 +3,6 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("user not found")]
-    #[allow(dead_code)]
     UserNotFound,
 
     #[error("username or email is already registered")]

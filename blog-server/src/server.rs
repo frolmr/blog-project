@@ -15,7 +15,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::application::{AuthService, BlogService};
 use crate::config::Config;
 use crate::infrastructure::jwt::JwtService;
-use crate::presentation::grpc::{GrpcPostService, GrpcUserService};
+use crate::presentation::grpc::BlogGrpcService;
 use crate::presentation::http_handlers as handlers;
 use crate::presentation::middleware::jwt_validator;
 use crate::presentation::openapi::ApiDoc;
@@ -42,8 +42,7 @@ pub async fn run(
     let grpc_jwt = Arc::clone(&jwt);
 
     let grpc = TransportServer::builder()
-        .add_service(GrpcUserService::new(grpc_auth))
-        .add_service(GrpcPostService::server(grpc_blog, grpc_jwt))
+        .add_service(BlogGrpcService::server(grpc_auth, grpc_blog, grpc_jwt))
         .serve(grpc_addr);
 
     let http = HttpServer::new(move || {

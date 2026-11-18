@@ -12,6 +12,9 @@ prost-types.workspace = true
 tokio.workspace = true
 async-trait.workspace = true
 
+# Database
+sqlx.workspace = true
+
 # Domain / application
 chrono.workspace = true
 serde.workspace = true

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use blog_proto::v1::post_service_server::{PostService, PostServiceServer};
-use blog_proto::v1::user_service_server::{UserService, UserServiceServer};
+use blog_proto::v1::blog_service_server::{BlogService as BlogServiceApi, BlogServiceServer};
 use blog_proto::v1::{
     CreatePostRequest, DeletePostRequest, GetPostRequest, ListPostsRequest, ListPostsResponse,
     LoginRequest, LoginResponse, Post, RegisterRequest, RegisterResponse, UpdatePostRequest, User,
@@ -15,18 +14,24 @@ use crate::domain::{AppError, PostUpdate};
 use crate::infrastructure::jwt::JwtService;
 use crate::presentation::middleware::{AuthenticatedUser, bearer_token};
 
-pub struct GrpcUserService {
+pub struct BlogGrpcService {
     auth: Arc<AuthService>,
+    blog: Arc<BlogService>,
 }
 
-impl GrpcUserService {
-    pub fn new(auth: Arc<AuthService>) -> UserServiceServer<Self> {
-        UserServiceServer::new(Self { auth })
+impl BlogGrpcService {
+    pub fn server(
+        auth: Arc<AuthService>,
+        blog: Arc<BlogService>,
+        jwt: Arc<JwtService>,
+    ) -> tonic::service::interceptor::InterceptedService<BlogServiceServer<Self>, AuthInterceptor>
+    {
+        BlogServiceServer::with_interceptor(Self { auth, blog }, AuthInterceptor::new(jwt))
     }
 }
 
 #[tonic::async_trait]
-impl UserService for GrpcUserService {
+impl BlogServiceApi for BlogGrpcService {
     async fn register(
         &self,
         request: Request<RegisterRequest>,
@@ -60,24 +65,7 @@ impl UserService for GrpcUserService {
             access_token: result.access_token,
         }))
     }
-}
 
-pub struct GrpcPostService {
-    blog: Arc<BlogService>,
-}
-
-impl GrpcPostService {
-    pub fn server(
-        blog: Arc<BlogService>,
-        jwt: Arc<JwtService>,
-    ) -> tonic::service::interceptor::InterceptedService<PostServiceServer<Self>, AuthInterceptor>
-    {
-        PostServiceServer::with_interceptor(Self { blog }, AuthInterceptor::new(jwt))
-    }
-}
-
-#[tonic::async_trait]
-impl PostService for GrpcPostService {
     async fn create_post(
         &self,
         request: Request<CreatePostRequest>,
@@ -253,8 +241,7 @@ fn into_proto_post(post: crate::domain::Post) -> Post {
 mod tests {
     use std::time::Duration;
 
-    use blog_proto::v1::post_service_client::PostServiceClient;
-    use blog_proto::v1::user_service_client::UserServiceClient;
+    use blog_proto::v1::blog_service_client::BlogServiceClient;
     use tonic::Code;
     use tonic::metadata::MetadataValue;
     use tonic::transport::Server as TransportServer;
@@ -271,8 +258,7 @@ mod tests {
 
         tokio::spawn(async move {
             TransportServer::builder()
-                .add_service(GrpcUserService::new(auth))
-                .add_service(GrpcPostService::server(blog, jwt))
+                .add_service(BlogGrpcService::server(auth, blog, jwt))
                 .serve(addr)
                 .await
                 .expect("gRPC server");
@@ -286,12 +272,12 @@ mod tests {
     }
 
     async fn register(
-        users: &mut UserServiceClient<tonic::transport::Channel>,
+        client: &mut BlogServiceClient<tonic::transport::Channel>,
         username: &str,
         email: &str,
         password: &str,
     ) -> Result<RegisterResponse, tonic::Status> {
-        users
+        client
             .register(RegisterRequest {
                 username: username.into(),
                 email: email.into(),
@@ -302,11 +288,11 @@ mod tests {
     }
 
     async fn login(
-        users: &mut UserServiceClient<tonic::transport::Channel>,
+        client: &mut BlogServiceClient<tonic::transport::Channel>,
         identifier: &str,
         password: &str,
     ) -> Result<LoginResponse, tonic::Status> {
-        users
+        client
             .login(LoginRequest {
                 identifier: identifier.into(),
                 password: password.into(),
@@ -316,7 +302,7 @@ mod tests {
     }
 
     async fn create(
-        posts: &mut PostServiceClient<tonic::transport::Channel>,
+        client: &mut BlogServiceClient<tonic::transport::Channel>,
         token: &str,
         title: &str,
     ) -> Result<Post, tonic::Status> {
@@ -328,7 +314,7 @@ mod tests {
             .metadata_mut()
             .insert("authorization", bearer(token));
 
-        posts
+        client
             .create_post(request)
             .await
             .map(|response| response.into_inner())
@@ -337,10 +323,9 @@ mod tests {
     #[tokio::test]
     async fn grpc_enforces_auth_for_writes_and_allows_public_reads() {
         let addr = spawn_server().await;
-        let mut users = connect_user_client(addr).await;
-        let mut posts = connect_post_client(addr).await;
+        let mut client = connect_client(addr).await;
 
-        let registered = register(&mut users, "alice", "alice@example.com", "secret123")
+        let registered = register(&mut client, "alice", "alice@example.com", "secret123")
             .await
             .expect("registration succeeds");
         let token = registered.access_token;
@@ -349,7 +334,7 @@ mod tests {
             Some("alice")
         );
 
-        let unauth = posts
+        let unauth = client
             .create_post(CreatePostRequest {
                 title: "no token".into(),
                 content: "should fail".into(),
@@ -358,10 +343,10 @@ mod tests {
             .expect_err("write without a token must fail");
         assert_eq!(unauth.code(), Code::Unauthenticated);
 
-        let created = create(&mut posts, &token, "Hello").await.expect("create");
+        let created = create(&mut client, &token, "Hello").await.expect("create");
         assert_eq!(created.title, "Hello");
 
-        let fetched = posts
+        let fetched = client
             .get_post(GetPostRequest { id: created.id })
             .await
             .expect("public read")
@@ -376,7 +361,7 @@ mod tests {
         update
             .metadata_mut()
             .insert("authorization", bearer(&token));
-        let updated = posts
+        let updated = client
             .update_post(update)
             .await
             .expect("update")
@@ -387,9 +372,9 @@ mod tests {
         delete
             .metadata_mut()
             .insert("authorization", bearer(&token));
-        posts.delete_post(delete).await.expect("delete");
+        client.delete_post(delete).await.expect("delete");
 
-        let missing = posts
+        let missing = client
             .get_post(GetPostRequest { id: created.id })
             .await
             .expect_err("deleted post is gone");
@@ -399,13 +384,13 @@ mod tests {
     #[tokio::test]
     async fn grpc_logs_in_and_rejects_duplicate_registrations() {
         let addr = spawn_server().await;
-        let mut users = connect_user_client(addr).await;
+        let mut client = connect_client(addr).await;
 
-        let registered = register(&mut users, "alice", "alice@example.com", "secret123")
+        let registered = register(&mut client, "alice", "alice@example.com", "secret123")
             .await
             .expect("registration succeeds");
 
-        let by_username = login(&mut users, "alice", "secret123")
+        let by_username = login(&mut client, "alice", "secret123")
             .await
             .expect("login by username");
         assert_eq!(
@@ -414,21 +399,21 @@ mod tests {
         );
         assert!(!by_username.access_token.is_empty());
 
-        login(&mut users, "ALICE@example.com", "secret123")
+        login(&mut client, "ALICE@example.com", "secret123")
             .await
             .expect("login by email");
 
-        let wrong_password = login(&mut users, "alice", "wrong-password")
+        let wrong_password = login(&mut client, "alice", "wrong-password")
             .await
             .expect_err("wrong password must fail");
         assert_eq!(wrong_password.code(), Code::Unauthenticated);
 
-        let duplicate = register(&mut users, "alice", "other@example.com", "secret123")
+        let duplicate = register(&mut client, "alice", "other@example.com", "secret123")
             .await
             .expect_err("duplicate username must fail");
         assert_eq!(duplicate.code(), Code::AlreadyExists);
 
-        let duplicate = register(&mut users, "bob", "ALICE@example.com", "secret123")
+        let duplicate = register(&mut client, "bob", "ALICE@example.com", "secret123")
             .await
             .expect_err("duplicate email must fail");
         assert_eq!(duplicate.code(), Code::AlreadyExists);
@@ -437,19 +422,18 @@ mod tests {
     #[tokio::test]
     async fn grpc_rejects_writes_from_a_non_author() {
         let addr = spawn_server().await;
-        let mut users = connect_user_client(addr).await;
-        let mut posts = connect_post_client(addr).await;
+        let mut client = connect_client(addr).await;
 
-        let alice = register(&mut users, "alice", "alice@example.com", "secret123")
+        let alice = register(&mut client, "alice", "alice@example.com", "secret123")
             .await
             .expect("alice registers")
             .access_token;
-        let bob = register(&mut users, "bob", "bob@example.com", "secret123")
+        let bob = register(&mut client, "bob", "bob@example.com", "secret123")
             .await
             .expect("bob registers")
             .access_token;
 
-        let created = create(&mut posts, &alice, "Hello")
+        let created = create(&mut client, &alice, "Hello")
             .await
             .expect("alice creates a post");
 
@@ -459,7 +443,7 @@ mod tests {
             content: None,
         });
         update.metadata_mut().insert("authorization", bearer(&bob));
-        let error = posts
+        let error = client
             .update_post(update)
             .await
             .expect_err("non-author update must fail");
@@ -467,7 +451,7 @@ mod tests {
 
         let mut delete = tonic::Request::new(DeletePostRequest { id: created.id });
         delete.metadata_mut().insert("authorization", bearer(&bob));
-        let error = posts
+        let error = client
             .delete_post(delete)
             .await
             .expect_err("non-author delete must fail");
@@ -478,26 +462,25 @@ mod tests {
         delete
             .metadata_mut()
             .insert("authorization", bearer(&alice));
-        posts.delete_post(delete).await.expect("author deletes");
+        client.delete_post(delete).await.expect("author deletes");
     }
 
     #[tokio::test]
     async fn grpc_normalizes_pagination() {
         let addr = spawn_server().await;
-        let mut users = connect_user_client(addr).await;
-        let mut posts = connect_post_client(addr).await;
+        let mut client = connect_client(addr).await;
 
-        let token = register(&mut users, "alice", "alice@example.com", "secret123")
+        let token = register(&mut client, "alice", "alice@example.com", "secret123")
             .await
             .expect("registration succeeds")
             .access_token;
         for title in ["First", "Second", "Third"] {
-            create(&mut posts, &token, title)
+            create(&mut client, &token, title)
                 .await
                 .expect("post is created");
         }
 
-        let defaults = posts
+        let defaults = client
             .list_posts(ListPostsRequest {
                 page: 0,
                 page_size: 0,
@@ -510,7 +493,7 @@ mod tests {
         assert_eq!(defaults.page_size, 20);
         assert_eq!(defaults.posts[0].title, "Third");
 
-        let capped = posts
+        let capped = client
             .list_posts(ListPostsRequest {
                 page: 1,
                 page_size: 10_000,
@@ -521,7 +504,7 @@ mod tests {
         assert_eq!(capped.page_size, 100);
         assert_eq!(capped.page, 1);
 
-        let second_page = posts
+        let second_page = client
             .list_posts(ListPostsRequest {
                 page: 2,
                 page_size: 2,
@@ -534,16 +517,10 @@ mod tests {
         assert_eq!(second_page.posts[0].title, "First");
     }
 
-    async fn connect_user_client(
+    async fn connect_client(
         addr: std::net::SocketAddr,
-    ) -> UserServiceClient<tonic::transport::Channel> {
-        connect(format!("http://{addr}"), UserServiceClient::connect).await
-    }
-
-    async fn connect_post_client(
-        addr: std::net::SocketAddr,
-    ) -> PostServiceClient<tonic::transport::Channel> {
-        connect(format!("http://{addr}"), PostServiceClient::connect).await
+    ) -> BlogServiceClient<tonic::transport::Channel> {
+        connect(format!("http://{addr}"), BlogServiceClient::connect).await
     }
 
     async fn connect<T, F, Fut>(url: String, connect: F) -> T
