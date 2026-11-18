@@ -1,0 +1,37 @@
+use anyhow::{Context, Result, ensure};
+
+use crate::infrastructure::jwt::MIN_SECRET_LENGTH;
+
+pub struct Config {
+    pub http_addr: String,
+    pub grpc_addr: String,
+    pub jwt_secret: String,
+    pub cors_allowed_origin: Option<String>,
+}
+
+impl Config {
+    pub fn from_env() -> Result<Self> {
+        let jwt_secret = std::env::var("JWT_SECRET")
+            .context("JWT_SECRET must be set (at least 32 characters)")?;
+        ensure!(
+            jwt_secret.len() >= MIN_SECRET_LENGTH,
+            "JWT_SECRET must be at least {MIN_SECRET_LENGTH} characters long"
+        );
+
+        Ok(Self {
+            http_addr: env_or("BLOG_HTTP_ADDR", "127.0.0.1:8080"),
+            grpc_addr: env_or("BLOG_GRPC_ADDR", "127.0.0.1:50051"),
+            jwt_secret,
+            cors_allowed_origin: std::env::var("CORS_ALLOWED_ORIGIN")
+                .ok()
+                .filter(|origin| !origin.trim().is_empty()),
+        })
+    }
+}
+
+fn env_or(key: &str, default: &str) -> String {
+    std::env::var(key)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default.to_owned())
+}

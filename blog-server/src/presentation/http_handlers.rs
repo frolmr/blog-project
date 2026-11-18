@@ -1,16 +1,14 @@
-use actix_web::{HttpResponse, delete, get, patch, post, web};
+use std::sync::Arc;
 
-use crate::dto::{
-    ApiError, AuthResponse, CreatePostBody, ListPostsQuery, ListPostsResponse, LoginBody, PostDto,
-    RegisterBody, UpdatePostBody,
+use actix_web::{HttpRequest, HttpResponse, web};
+
+use crate::application::{AuthService, BlogService};
+use crate::domain::{AppError, PostUpdate};
+use crate::presentation::dto::{
+    ApiError, AuthResponse, CreatePostBody, HealthResponse, ListPostsQuery, ListPostsResponse,
+    LoginBody, PostDto, RegisterBody, UpdatePostBody,
 };
-
-fn not_implemented(operation: &str) -> HttpResponse {
-    HttpResponse::NotImplemented().json(ApiError {
-        code: "not_implemented".to_owned(),
-        message: format!("{operation} is not implemented yet"),
-    })
-}
+use crate::presentation::middleware::authenticated_user;
 
 #[utoipa::path(
     get,
@@ -20,16 +18,10 @@ fn not_implemented(operation: &str) -> HttpResponse {
         (status = 200, description = "Service is healthy", body = HealthResponse)
     )
 )]
-#[get("/health")]
 pub async fn health() -> HttpResponse {
     HttpResponse::Ok().json(HealthResponse {
         status: "ok".to_owned(),
     })
-}
-
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct HealthResponse {
-    pub status: String,
 }
 
 #[utoipa::path(
@@ -43,9 +35,16 @@ pub struct HealthResponse {
         (status = 409, description = "Username or email already exists", body = ApiError)
     )
 )]
-#[post("/auth/register")]
-pub async fn register(_body: web::Json<RegisterBody>) -> HttpResponse {
-    not_implemented("register")
+pub async fn register(
+    body: web::Json<RegisterBody>,
+    auth: web::Data<Arc<AuthService>>,
+) -> Result<HttpResponse, AppError> {
+    let body = body.into_inner();
+    let result = auth
+        .register(&body.username, &body.email, &body.password)
+        .await?;
+
+    Ok(HttpResponse::Created().json(AuthResponse::from(result)))
 }
 
 #[utoipa::path(
@@ -59,9 +58,14 @@ pub async fn register(_body: web::Json<RegisterBody>) -> HttpResponse {
         (status = 401, description = "Invalid credentials", body = ApiError)
     )
 )]
-#[post("/auth/login")]
-pub async fn login(_body: web::Json<LoginBody>) -> HttpResponse {
-    not_implemented("login")
+pub async fn login(
+    body: web::Json<LoginBody>,
+    auth: web::Data<Arc<AuthService>>,
+) -> Result<HttpResponse, AppError> {
+    let body = body.into_inner();
+    let result = auth.login(&body.identifier, &body.password).await?;
+
+    Ok(HttpResponse::Ok().json(AuthResponse::from(result)))
 }
 
 #[utoipa::path(
@@ -76,9 +80,19 @@ pub async fn login(_body: web::Json<LoginBody>) -> HttpResponse {
     ),
     security(("bearer_auth" = []))
 )]
-#[post("/posts")]
-pub async fn create_post(_body: web::Json<CreatePostBody>) -> HttpResponse {
-    not_implemented("create_post")
+pub async fn create_post(
+    req: HttpRequest,
+    body: web::Json<CreatePostBody>,
+    blog: web::Data<Arc<BlogService>>,
+) -> Result<HttpResponse, AppError> {
+    let user = authenticated_user(&req)?;
+    let body = body.into_inner();
+    let post = blog
+        .create_post(user.user_id, body.title, body.content)
+        .await?;
+    tracing::info!(user = %user.username, post_id = post.id, "post created");
+
+    Ok(HttpResponse::Created().json(PostDto::from(post)))
 }
 
 #[utoipa::path(
@@ -90,9 +104,12 @@ pub async fn create_post(_body: web::Json<CreatePostBody>) -> HttpResponse {
         (status = 200, description = "Paginated post list", body = ListPostsResponse)
     )
 )]
-#[get("/posts")]
-pub async fn list_posts(_query: web::Query<ListPostsQuery>) -> HttpResponse {
-    not_implemented("list_posts")
+pub async fn list_posts(
+    query: web::Query<ListPostsQuery>,
+    blog: web::Data<Arc<BlogService>>,
+) -> Result<HttpResponse, AppError> {
+    let page = blog.list_posts(query.page, query.page_size).await?;
+    Ok(HttpResponse::Ok().json(ListPostsResponse::from(page)))
 }
 
 #[utoipa::path(
@@ -107,9 +124,12 @@ pub async fn list_posts(_query: web::Query<ListPostsQuery>) -> HttpResponse {
         (status = 404, description = "Post not found", body = ApiError)
     )
 )]
-#[get("/posts/{id}")]
-pub async fn get_post(_path: web::Path<i64>) -> HttpResponse {
-    not_implemented("get_post")
+pub async fn get_post(
+    path: web::Path<i64>,
+    blog: web::Data<Arc<BlogService>>,
+) -> Result<HttpResponse, AppError> {
+    let post = blog.get_post(path.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(PostDto::from(post)))
 }
 
 #[utoipa::path(
@@ -129,9 +149,27 @@ pub async fn get_post(_path: web::Path<i64>) -> HttpResponse {
     ),
     security(("bearer_auth" = []))
 )]
-#[patch("/posts/{id}")]
-pub async fn update_post(_path: web::Path<i64>, _body: web::Json<UpdatePostBody>) -> HttpResponse {
-    not_implemented("update_post")
+pub async fn update_post(
+    req: HttpRequest,
+    path: web::Path<i64>,
+    body: web::Json<UpdatePostBody>,
+    blog: web::Data<Arc<BlogService>>,
+) -> Result<HttpResponse, AppError> {
+    let user = authenticated_user(&req)?;
+    let body = body.into_inner();
+    let post = blog
+        .update_post(
+            path.into_inner(),
+            user.user_id,
+            PostUpdate {
+                title: body.title,
+                content: body.content,
+            },
+        )
+        .await?;
+    tracing::info!(user = %user.username, post_id = post.id, "post updated");
+
+    Ok(HttpResponse::Ok().json(PostDto::from(post)))
 }
 
 #[utoipa::path(
@@ -149,7 +187,15 @@ pub async fn update_post(_path: web::Path<i64>, _body: web::Json<UpdatePostBody>
     ),
     security(("bearer_auth" = []))
 )]
-#[delete("/posts/{id}")]
-pub async fn delete_post(_path: web::Path<i64>) -> HttpResponse {
-    not_implemented("delete_post")
+pub async fn delete_post(
+    req: HttpRequest,
+    path: web::Path<i64>,
+    blog: web::Data<Arc<BlogService>>,
+) -> Result<HttpResponse, AppError> {
+    let user = authenticated_user(&req)?;
+    let id = path.into_inner();
+    blog.delete_post(id, user.user_id).await?;
+    tracing::info!(user = %user.username, post_id = id, "post deleted");
+
+    Ok(HttpResponse::NoContent().finish())
 }

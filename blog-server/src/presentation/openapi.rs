@@ -1,11 +1,10 @@
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
-use crate::dto::{
-    ApiError, AuthResponse, CreatePostBody, ListPostsResponse, LoginBody, PostDto, RegisterBody,
-    UpdatePostBody, UserDto,
+use crate::presentation::dto::{
+    ApiError, AuthResponse, CreatePostBody, HealthResponse, ListPostsResponse, LoginBody, PostDto,
+    RegisterBody, UpdatePostBody, UserDto,
 };
-use crate::handlers::HealthResponse;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -20,14 +19,14 @@ use crate::handlers::HealthResponse;
         (name = "posts", description = "Blog post CRUD")
     ),
     paths(
-        crate::handlers::health,
-        crate::handlers::register,
-        crate::handlers::login,
-        crate::handlers::create_post,
-        crate::handlers::list_posts,
-        crate::handlers::get_post,
-        crate::handlers::update_post,
-        crate::handlers::delete_post
+        crate::presentation::http_handlers::health,
+        crate::presentation::http_handlers::register,
+        crate::presentation::http_handlers::login,
+        crate::presentation::http_handlers::create_post,
+        crate::presentation::http_handlers::list_posts,
+        crate::presentation::http_handlers::get_post,
+        crate::presentation::http_handlers::update_post,
+        crate::presentation::http_handlers::delete_post
     ),
     components(schemas(
         HealthResponse,

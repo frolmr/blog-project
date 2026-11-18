@@ -5,10 +5,34 @@ edition.workspace = true
 
 [dependencies]
 blog-proto.workspace = true
+tonic.workspace = true
+prost-types.workspace = true
 
-actix-web.workspace = true
-env_logger.workspace = true
-log.workspace = true
+# Async / runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Domain / application
+chrono.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+
+# Errors / config
+anyhow.workspace = true
+thiserror.workspace = true
+dotenvy.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Auth
+jsonwebtoken.workspace = true
+argon2.workspace = true
+
+# HTTP
+actix-web.workspace = true
+actix-cors.workspace = true
+actix-web-httpauth.workspace = true
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
