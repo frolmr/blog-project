@@ -26,6 +26,9 @@ tonic-prost-build = "0.14"
 # HTTP client
 reqwest = { version = "0.13", features = ["json", "query"] }
 
+# CLI
+clap = { version = "4", features = ["derive"] }
+
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
