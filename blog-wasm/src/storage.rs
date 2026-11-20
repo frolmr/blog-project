@@ -1,13 +1,21 @@
+//! `localStorage` persistence for the JWT.
+//!
+//! The key is shared with the rest of the UI as [`TOKEN_KEY`]. Storage errors
+//! are surfaced as `String`s because they are shown directly in the interface.
+
 use web_sys::Storage;
 
+/// `localStorage` key that holds the JWT.
 pub const TOKEN_KEY: &str = "blog_token";
 
+/// Saves the token, replacing any previous value.
 pub fn save_token_to_storage(token: &str) -> Result<(), String> {
     storage()?
         .set_item(TOKEN_KEY, token)
         .map_err(|_| "failed to save the token in localStorage".to_owned())
 }
 
+/// Returns the stored token, treating blank values as absent.
 pub fn get_token_from_storage() -> Option<String> {
     storage()
         .ok()?
@@ -17,6 +25,7 @@ pub fn get_token_from_storage() -> Option<String> {
         .filter(|token| !token.trim().is_empty())
 }
 
+/// Removes the stored token, if `localStorage` is available.
 pub fn clear_token_from_storage() {
     if let Ok(storage) = storage() {
         let _ = storage.remove_item(TOKEN_KEY);

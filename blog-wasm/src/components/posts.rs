@@ -1,3 +1,9 @@
+//! Post list and author-only edit/delete controls.
+//!
+//! [`PostCard`] shows edit and delete actions only when the current user is the
+//! author. The server still enforces ownership, so these controls are a
+//! convenience rather than a security boundary.
+
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
@@ -6,16 +12,24 @@ use crate::components::inputs::{on_input, on_textarea_input};
 use crate::format::format_time;
 use crate::models::Post;
 
+/// Inputs and callbacks for [`PostCard`].
 #[derive(Properties, PartialEq)]
 pub struct PostCardProps {
+    /// The post to render.
     pub post: Post,
+    /// Current user id, used to show author-only actions.
     pub current_user_id: Option<i64>,
+    /// JWT used for update and delete requests.
     pub token: String,
+    /// Invoked with the updated post after a successful save.
     pub on_updated: Callback<Post>,
+    /// Invoked with the post id after a successful delete.
     pub on_deleted: Callback<i64>,
+    /// Invoked when a request fails.
     pub on_error: Callback<ApiError>,
 }
 
+/// Card for a single post with optional inline editing and deletion.
 #[function_component(PostCard)]
 pub fn post_card(props: &PostCardProps) -> Html {
     let editing = use_state(|| false);

@@ -1,3 +1,5 @@
+//! PostgreSQL implementation of [`UserRepository`].
+
 use async_trait::async_trait;
 use sqlx::PgPool;
 
@@ -7,12 +9,14 @@ use crate::domain::{AppError, AppResult, NewUser, User};
 use super::error::is_unique_violation;
 use super::rows::UserRow;
 
+/// Repository backed by the `users` table.
 #[derive(Debug)]
 pub struct PgUserRepository {
     pool: PgPool,
 }
 
 impl PgUserRepository {
+    /// Creates a repository that uses the given connection pool.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }

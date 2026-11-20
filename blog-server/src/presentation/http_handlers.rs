@@ -1,3 +1,9 @@
+//! Actix Web handlers for the REST API.
+//!
+//! Each handler extracts typed input, delegates to an application service, and
+//! converts the result to a DTO. Errors bubble up as [`AppError`], which
+//! `presentation::error` renders as JSON.
+
 use std::sync::Arc;
 
 use actix_web::{HttpRequest, HttpResponse, web};
@@ -10,6 +16,7 @@ use crate::presentation::dto::{
 };
 use crate::presentation::middleware::authenticated_user;
 
+/// Returns `200 OK` and `{"status":"ok"}`.
 #[utoipa::path(
     get,
     path = "/health",
@@ -24,6 +31,7 @@ pub async fn health() -> HttpResponse {
     })
 }
 
+/// Creates an account and returns the user plus a JWT (`201 Created`).
 #[utoipa::path(
     post,
     path = "/api/v1/auth/register",
@@ -47,6 +55,7 @@ pub async fn register(
     Ok(HttpResponse::Created().json(AuthResponse::from(result)))
 }
 
+/// Authenticates a username or email and returns a JWT (`200 OK`).
 #[utoipa::path(
     post,
     path = "/api/v1/auth/login",
@@ -68,6 +77,7 @@ pub async fn login(
     Ok(HttpResponse::Ok().json(AuthResponse::from(result)))
 }
 
+/// Creates a post for the authenticated caller (`201 Created`).
 #[utoipa::path(
     post,
     path = "/api/v1/posts",
@@ -95,6 +105,7 @@ pub async fn create_post(
     Ok(HttpResponse::Created().json(PostDto::from(post)))
 }
 
+/// Lists posts newest first (`200 OK`). This endpoint is public.
 #[utoipa::path(
     get,
     path = "/api/v1/posts",
@@ -112,6 +123,7 @@ pub async fn list_posts(
     Ok(HttpResponse::Ok().json(ListPostsResponse::from(page)))
 }
 
+/// Fetches one post by id (`200 OK`). This endpoint is public.
 #[utoipa::path(
     get,
     path = "/api/v1/posts/{id}",
@@ -132,6 +144,7 @@ pub async fn get_post(
     Ok(HttpResponse::Ok().json(PostDto::from(post)))
 }
 
+/// Partially updates the caller's post (`200 OK`).
 #[utoipa::path(
     patch,
     path = "/api/v1/posts/{id}",
@@ -172,6 +185,7 @@ pub async fn update_post(
     Ok(HttpResponse::Ok().json(PostDto::from(post)))
 }
 
+/// Deletes the caller's post (`204 No Content`).
 #[utoipa::path(
     delete,
     path = "/api/v1/posts/{id}",

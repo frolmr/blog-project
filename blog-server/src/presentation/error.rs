@@ -1,3 +1,9 @@
+//! Maps [`AppError`] to Actix Web responses.
+//!
+//! Business errors keep their status and message. Internal and configuration
+//! errors are logged and replaced with a generic `500` body so implementation
+//! details never reach clients.
+
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 

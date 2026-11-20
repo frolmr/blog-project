@@ -1,3 +1,33 @@
+//! Shared HTTP and gRPC client for the blog service.
+//!
+//! [`BlogClient`] exposes one transport-independent API for authentication and
+//! post CRUD. The transport is selected with [`Transport`]:
+//!
+//! ```no_run
+//! use blog_client::{BlogClient, Transport};
+//!
+//! # async fn example() -> Result<(), blog_client::BlogClientError> {
+//! let mut client = BlogClient::new(Transport::Http(
+//!     "http://127.0.0.1:8080".to_owned(),
+//! ))
+//! .await?;
+//!
+//! let auth = client
+//!     .register("alice", "alice@example.com", "secret123")
+//!     .await?;
+//! let post = client.create_post("Hello", "World").await?;
+//! println!("created post #{} for {}", post.id, auth.user.username);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Registering or logging in stores the returned JWT in the client
+//! automatically. Protected operations return
+//! [`BlogClientError::Unauthorized`] when no token has been set.
+//!
+//! The client generates its own private tonic bindings from
+//! `blog-proto/proto/blog.proto`; it does not depend on the `blog-proto` crate.
+
 pub mod error;
 pub mod grpc_client;
 pub mod http_client;
@@ -15,13 +45,19 @@ use http_client::HttpClient as HttpTransport;
 
 const MAX_PAGE_SIZE: u32 = 100;
 
+/// Selects the wire protocol and endpoint used by [`BlogClient`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Transport {
+    /// REST transport. The value is the server base URL, for example
+    /// `http://127.0.0.1:8080`.
     Http(String),
+    /// gRPC transport. The value is a full endpoint URL including the scheme,
+    /// for example `http://127.0.0.1:50051`.
     Grpc(String),
 }
 
 impl Transport {
+    /// Returns the endpoint stored in this transport.
     pub fn endpoint(&self) -> &str {
         match self {
             Self::Http(endpoint) | Self::Grpc(endpoint) => endpoint,
@@ -29,6 +65,12 @@ impl Transport {
     }
 }
 
+/// Transport-independent client for the blog service.
+///
+/// A client owns at most one transport and an optional JWT. Use
+/// [`BlogClient::new`] to create it, then call [`BlogClient::register`] or
+/// [`BlogClient::login`] to authenticate. The token can also be restored from
+/// persistent storage with [`BlogClient::set_token`].
 pub struct BlogClient {
     transport: Transport,
     http_client: Option<HttpTransport>,
@@ -37,6 +79,10 @@ pub struct BlogClient {
 }
 
 impl BlogClient {
+    /// Creates a client for the requested transport.
+    ///
+    /// HTTP creation is immediate. gRPC establishes a connection, so this
+    /// method is `async` and can return a transport error.
     pub async fn new(transport: Transport) -> Result<Self, BlogClientError> {
         let (http_client, grpc_client) = match &transport {
             Transport::Http(base_url) => (Some(HttpTransport::new(base_url)), None),
@@ -51,22 +97,27 @@ impl BlogClient {
         })
     }
 
+    /// Returns the configured transport.
     pub fn transport(&self) -> &Transport {
         &self.transport
     }
 
+    /// Restores or replaces the JWT used for protected requests.
     pub fn set_token(&mut self, token: impl Into<String>) {
         self.token = Some(token.into());
     }
 
+    /// Returns the current JWT, if one is set.
     pub fn get_token(&self) -> Option<&str> {
         self.token.as_deref()
     }
 
+    /// Removes the current JWT.
     pub fn clear_token(&mut self) {
         self.token = None;
     }
 
+    /// Creates an account and stores the returned JWT in this client.
     pub async fn register(
         &mut self,
         username: &str,
@@ -85,6 +136,7 @@ impl BlogClient {
         Ok(response)
     }
 
+    /// Logs in with a username or email and stores the returned JWT.
     pub async fn login(
         &mut self,
         identifier: &str,
@@ -102,6 +154,10 @@ impl BlogClient {
         Ok(response)
     }
 
+    /// Creates a post for the authenticated user.
+    ///
+    /// Requires a JWT; returns [`BlogClientError::Unauthorized`] when none is
+    /// set.
     pub async fn create_post(
         &mut self,
         title: &str,
@@ -118,6 +174,7 @@ impl BlogClient {
         }
     }
 
+    /// Fetches one post by id. This endpoint is public.
     pub async fn get_post(&mut self, id: i64) -> Result<Post, BlogClientError> {
         if let Some(http) = &self.http_client {
             http.get_post(id).await
@@ -128,6 +185,9 @@ impl BlogClient {
         }
     }
 
+    /// Updates the authenticated author's post.
+    ///
+    /// `None` leaves the corresponding field unchanged. Requires a JWT.
     pub async fn update_post(
         &mut self,
         id: i64,
@@ -145,6 +205,7 @@ impl BlogClient {
         }
     }
 
+    /// Deletes the authenticated author's post. Requires a JWT.
     pub async fn delete_post(&mut self, id: i64) -> Result<(), BlogClientError> {
         let token = self.require_token()?;
 
@@ -157,6 +218,10 @@ impl BlogClient {
         }
     }
 
+    /// Lists posts newest first using a limit/offset abstraction.
+    ///
+    /// `limit` must be between 1 and 100, and `offset` must be a multiple of
+    /// `limit`. The values are converted to the server's 1-based page API.
     pub async fn list_posts(
         &mut self,
         limit: u32,

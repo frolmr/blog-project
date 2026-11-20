@@ -1,3 +1,9 @@
+//! HS256 JWT issuing and validation.
+//!
+//! [`JwtService`] implements [`TokenIssuer`] for the application layer and is
+//! also used directly by the HTTP middleware and gRPC interceptor to validate
+//! bearer tokens.
+
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
@@ -5,17 +11,23 @@ use serde::{Deserialize, Serialize};
 use crate::application::ports::TokenIssuer;
 use crate::domain::{AppError, AppResult};
 
+/// Minimum accepted secret length in bytes.
 pub const MIN_SECRET_LENGTH: usize = 32;
 
 const TOKEN_TTL_HOURS: i64 = 24;
 
+/// Claims embedded in issued tokens.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
+    /// Authenticated user identifier.
     pub user_id: i64,
+    /// Authenticated username.
     pub username: String,
+    /// Expiration time in Unix seconds.
     pub exp: usize,
 }
 
+/// Issues and verifies HS256 tokens with a shared secret.
 pub struct JwtService {
     encoding: EncodingKey,
     decoding: DecodingKey,
@@ -23,6 +35,10 @@ pub struct JwtService {
 }
 
 impl JwtService {
+    /// Creates a service from a secret of at least [`MIN_SECRET_LENGTH`] bytes.
+    ///
+    /// Returns [`AppError::Configuration`] when the secret is too short or
+    /// invalid.
     pub fn new(secret: &str) -> AppResult<Self> {
         if secret.len() < MIN_SECRET_LENGTH {
             return Err(AppError::Configuration(format!(
@@ -39,6 +55,7 @@ impl JwtService {
         })
     }
 
+    /// Issues a token that expires after 24 hours.
     pub fn generate_token(&self, user_id: i64, username: &str) -> AppResult<String> {
         let claims = Claims {
             user_id,
@@ -50,6 +67,10 @@ impl JwtService {
             .map_err(|error| AppError::Internal(format!("failed to issue token: {error}")))
     }
 
+    /// Decodes and validates a token.
+    ///
+    /// Malformed, expired, and incorrectly signed tokens all return
+    /// [`AppError::Unauthorized`].
     pub fn verify_token(&self, token: &str) -> AppResult<Claims> {
         let validation = Validation::new(Algorithm::HS256);
         decode::<Claims>(token, &self.decoding, &validation)

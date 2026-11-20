@@ -1,3 +1,18 @@
+//! Blog server binary.
+//!
+//! `main` loads configuration, connects to PostgreSQL, applies migrations,
+//! constructs the application services and their adapters, and then runs the
+//! HTTP and gRPC servers concurrently.
+//!
+//! Layer overview:
+//!
+//! - [`domain`]: entities and [`domain::AppError`].
+//! - [`application`]: use-case services and port traits.
+//! - [`data`]: PostgreSQL repository adapters.
+//! - [`infrastructure`]: pool/migrations, JWT, and password hashing.
+//! - [`presentation`]: HTTP handlers, DTOs, middleware, gRPC, and OpenAPI.
+//! - [`server`]: transport wiring and startup.
+
 mod application;
 mod config;
 mod data;
@@ -47,11 +62,15 @@ async fn main() -> anyhow::Result<()> {
     result
 }
 
+/// Loads `.env` from the current directory and then from `blog-server/.env`.
+///
+/// Existing environment variables win, so deployments can override files.
 fn load_env() {
     dotenvy::dotenv().ok();
     let _ = dotenvy::from_filename(concat!(env!("CARGO_MANIFEST_DIR"), "/.env"));
 }
 
+/// Initializes `tracing` using `RUST_LOG`, falling back to `info`.
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt()

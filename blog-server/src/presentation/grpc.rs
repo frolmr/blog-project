@@ -1,3 +1,10 @@
+//! gRPC implementation of `blog.v1.BlogService`.
+//!
+//! [`BlogGrpcService`] translates protobuf messages to domain calls and
+//! [`AppError`] back to tonic [`Status`] codes. [`AuthInterceptor`] validates
+//! the `authorization` metadata for write RPCs; public reads work without a
+//! token.
+
 use std::sync::Arc;
 
 use blog_proto::v1::blog_service_server::{BlogService as BlogServiceApi, BlogServiceServer};
@@ -14,12 +21,14 @@ use crate::domain::{AppError, PostUpdate};
 use crate::infrastructure::jwt::JwtService;
 use crate::presentation::middleware::{AuthenticatedUser, bearer_token};
 
+/// tonic service backed by the application services.
 pub struct BlogGrpcService {
     auth: Arc<AuthService>,
     blog: Arc<BlogService>,
 }
 
 impl BlogGrpcService {
+    /// Builds the gRPC service wrapped in the JWT interceptor.
     pub fn server(
         auth: Arc<AuthService>,
         blog: Arc<BlogService>,
@@ -144,12 +153,19 @@ impl BlogServiceApi for BlogGrpcService {
     }
 }
 
+/// Validates the optional `authorization` metadata on every RPC.
+///
+/// When the metadata is absent the request continues without an
+/// [`AuthenticatedUser`], which is why public reads work but protected
+/// handlers reject the call. Malformed or invalid tokens fail immediately with
+/// `Unauthenticated`.
 #[derive(Clone)]
 pub struct AuthInterceptor {
     jwt: Arc<JwtService>,
 }
 
 impl AuthInterceptor {
+    /// Creates an interceptor that verifies tokens with `jwt`.
     pub fn new(jwt: Arc<JwtService>) -> Self {
         Self { jwt }
     }

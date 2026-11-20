@@ -1,9 +1,16 @@
+//! Argon2 password hashing.
+//!
+//! [`Argon2PasswordHasher`] implements [`PasswordHasher`] using the Argon2
+//! defaults from the `argon2` crate. Hashes are PHC strings and include a
+//! fresh random salt on every call.
+
 use argon2::Argon2;
 use argon2::password_hash::{PasswordHasher as _, PasswordVerifier, phc::PasswordHash};
 
 use crate::application::ports::PasswordHasher;
 use crate::domain::{AppError, AppResult};
 
+/// Stateless Argon2 hasher/verifier.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Argon2PasswordHasher;
 

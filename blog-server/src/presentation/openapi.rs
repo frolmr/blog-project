@@ -1,3 +1,8 @@
+//! OpenAPI document and Swagger UI security scheme.
+//!
+//! [`ApiDoc`] aggregates every REST handler and schema. `server` serves it as
+//! JSON at `/api-docs/openapi.json` and as Swagger UI at `/swagger-ui/`.
+
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
@@ -6,6 +11,7 @@ use crate::presentation::dto::{
     RegisterBody, UpdatePostBody, UserDto,
 };
 
+/// Complete OpenAPI description of the REST API.
 #[derive(OpenApi)]
 #[openapi(
     info(

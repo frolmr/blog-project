@@ -1,3 +1,10 @@
+//! Root application component and session state.
+//!
+//! [`App`] restores a session from `localStorage`, loads the public post list,
+//! and switches between the auth forms and the editor based on login state.
+//! The token is decoded only for display; authorization is enforced by the
+//! server.
+
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
@@ -9,6 +16,7 @@ use crate::components::posts::PostCard;
 use crate::models::{AuthResponse, Post};
 use crate::storage;
 
+/// Session restored from a valid, unexpired stored token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Session {
     token: String,
@@ -16,6 +24,7 @@ struct Session {
     username: String,
 }
 
+/// Loads the stored token and decodes its claims, discarding invalid tokens.
 fn restore_session() -> Option<Session> {
     let token = storage::get_token_from_storage()?;
 
@@ -32,6 +41,7 @@ fn restore_session() -> Option<Session> {
     }
 }
 
+/// Root Yew component.
 #[function_component(App)]
 pub fn app() -> Html {
     let session = use_state(restore_session);

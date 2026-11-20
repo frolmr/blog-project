@@ -1,3 +1,9 @@
+//! Bearer authentication for the REST routes.
+//!
+//! [`jwt_validator`] plugs into `actix-web-httpauth`, verifies the token, and
+//! inserts [`AuthenticatedUser`] into the request extensions. Handlers retrieve
+//! it with [`authenticated_user`].
+
 use actix_web::dev::ServiceRequest;
 use actix_web::error::Error;
 use actix_web::web;
@@ -8,12 +14,19 @@ use std::sync::Arc;
 use crate::domain::AppError;
 use crate::infrastructure::jwt::JwtService;
 
+/// Identity extracted from a validated JWT.
 #[derive(Debug, Clone)]
 pub struct AuthenticatedUser {
+    /// User id from the token subject.
     pub user_id: i64,
+    /// Username from the token.
     pub username: String,
 }
 
+/// Validates the bearer token and stores the caller identity in the request.
+///
+/// Invalid or expired tokens produce `401 Unauthorized`. A missing
+/// `JwtService` in application data is treated as a server misconfiguration.
 pub async fn jwt_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
@@ -44,6 +57,11 @@ pub async fn jwt_validator(
     }
 }
 
+/// Returns the authenticated caller inserted by [`jwt_validator`].
+///
+/// Handlers use this on protected routes. It returns
+/// [`AppError::Unauthorized`] when the extension is missing, which should not
+/// happen when the route is wrapped in the middleware.
 pub fn authenticated_user(req: &HttpRequest) -> Result<AuthenticatedUser, AppError> {
     req.extensions()
         .get::<AuthenticatedUser>()
@@ -51,6 +69,7 @@ pub fn authenticated_user(req: &HttpRequest) -> Result<AuthenticatedUser, AppErr
         .ok_or_else(|| AppError::Unauthorized("authentication required".into()))
 }
 
+/// Extracts the token from an `Authorization: Bearer <token>` header value.
 pub fn bearer_token(value: &str) -> Option<&str> {
     value.strip_prefix("Bearer ")
 }

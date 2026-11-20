@@ -1,3 +1,9 @@
+//! REST transport for [`crate::BlogClient`].
+//!
+//! This module is public for callers that want to use the HTTP transport
+//! directly, without the transport-independent facade. Most applications should
+//! prefer [`crate::BlogClient`].
+
 use reqwest::{Response, StatusCode};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -5,6 +11,7 @@ use serde::de::DeserializeOwned;
 use crate::error::BlogClientError;
 use crate::models::{AuthResponse, Post, PostPage};
 
+/// HTTP client for the blog REST API.
 #[derive(Debug, Clone)]
 pub struct HttpClient {
     base_url: String,
@@ -12,6 +19,10 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
+    /// Creates a client for the given base URL.
+    ///
+    /// A trailing slash is removed so endpoint URLs never contain a double
+    /// slash.
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_owned(),
@@ -19,10 +30,12 @@ impl HttpClient {
         }
     }
 
+    /// Returns the normalized server base URL.
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
 
+    /// Creates an account and returns the server's authentication response.
     pub async fn register(
         &self,
         username: &str,
@@ -43,6 +56,7 @@ impl HttpClient {
         decode(response).await
     }
 
+    /// Logs in with a username or email address.
     pub async fn login(
         &self,
         identifier: &str,
@@ -61,6 +75,7 @@ impl HttpClient {
         decode(response).await
     }
 
+    /// Creates a post using a bearer token.
     pub async fn create_post(
         &self,
         token: &str,
@@ -78,6 +93,7 @@ impl HttpClient {
         decode(response).await
     }
 
+    /// Fetches one post by id.
     pub async fn get_post(&self, id: i64) -> Result<Post, BlogClientError> {
         let response = self
             .client
@@ -88,6 +104,9 @@ impl HttpClient {
         decode(response).await
     }
 
+    /// Updates a post using a bearer token.
+    ///
+    /// `None` means the corresponding field is left unchanged.
     pub async fn update_post(
         &self,
         token: &str,
@@ -106,6 +125,7 @@ impl HttpClient {
         decode(response).await
     }
 
+    /// Deletes a post using a bearer token.
     pub async fn delete_post(&self, token: &str, id: i64) -> Result<(), BlogClientError> {
         let response = self
             .client
@@ -121,6 +141,9 @@ impl HttpClient {
         }
     }
 
+    /// Lists one page of posts.
+    ///
+    /// `page` is 1-based. The server caps `page_size` at 100.
     pub async fn list_posts(&self, page: u32, page_size: u32) -> Result<PostPage, BlogClientError> {
         let response = self
             .client

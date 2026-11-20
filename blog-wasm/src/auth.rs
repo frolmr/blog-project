@@ -1,14 +1,29 @@
+//! Minimal JWT payload decoding for the browser.
+//!
+//! The browser cannot verify the signature and does not need to: the server
+//! rejects forged or expired tokens. Decoding the payload only lets the UI know
+//! who is logged in and hide author-only actions until the server confirms.
+//! Expired tokens are discarded by [`claims_from_token`].
+
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde::Deserialize;
 
+/// Claims embedded in the server's HS256 JWT.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Claims {
+    /// Authenticated user identifier.
     pub user_id: i64,
+    /// Authenticated username.
     pub username: String,
+    /// Expiration timestamp in Unix seconds.
     pub exp: u64,
 }
 
+/// Decodes and validates the payload of a JWT.
+///
+/// Returns `None` for malformed tokens and for tokens whose `exp` is not in the
+/// future. Signature verification is intentionally left to the server.
 pub fn claims_from_token(token: &str) -> Option<Claims> {
     decode_claims(token, now_seconds())
 }

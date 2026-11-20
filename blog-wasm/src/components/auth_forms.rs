@@ -1,3 +1,8 @@
+//! Registration and login forms.
+//!
+//! Both components call the browser API and report the result through the
+//! callbacks in [`AuthFormProps`].
+
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
@@ -5,12 +10,16 @@ use crate::api::{self, ApiError};
 use crate::components::inputs::on_input;
 use crate::models::AuthResponse;
 
+/// Callbacks shared by the registration and login forms.
 #[derive(Properties, PartialEq)]
 pub struct AuthFormProps {
+    /// Invoked with the server response after a successful request.
     pub on_authenticated: Callback<AuthResponse>,
+    /// Invoked when the server or network returns an error.
     pub on_error: Callback<ApiError>,
 }
 
+/// Registration form component.
 #[function_component(RegisterForm)]
 pub fn register_form(props: &AuthFormProps) -> Html {
     let username = use_state(String::new);
@@ -122,6 +131,7 @@ pub fn register_form(props: &AuthFormProps) -> Html {
     }
 }
 
+/// Login form component; accepts a username or email.
 #[function_component(LoginForm)]
 pub fn login_form(props: &AuthFormProps) -> Html {
     let identifier = use_state(String::new);

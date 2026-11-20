@@ -1,9 +1,19 @@
+//! HTTP client for the browser frontend.
+//!
+//! Requests use `gloo-net` directly instead of the shared `blog-client` crate,
+//! which depends on tonic and cannot run in WASM. All methods return
+//! [`ApiError`] with a server-provided message when possible.
+
 use gloo_net::http::{Request, Response};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::models::{AuthResponse, Post, PostPage};
 
+/// Compile-time API base URL.
+///
+/// Override it with `BLOG_API_URL=... trunk build`. It defaults to the local
+/// backend on port 8080.
 pub const API_BASE: &str = match option_env!("BLOG_API_URL") {
     Some(url) => url,
     None => "http://127.0.0.1:8080",
@@ -11,9 +21,12 @@ pub const API_BASE: &str = match option_env!("BLOG_API_URL") {
 
 const PAGE_SIZE: u32 = 100;
 
+/// Error returned by the browser HTTP client.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApiError {
+    /// HTTP status, or 0 for network/serialization failures.
     pub status: u16,
+    /// Human-readable message suitable for display in the UI.
     pub message: String,
 }
 
@@ -25,6 +38,7 @@ impl std::fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+/// Registers a new account and returns its JWT.
 pub async fn register(
     username: &str,
     email: &str,
@@ -44,6 +58,7 @@ pub async fn register(
     decode(response).await
 }
 
+/// Logs in with a username or email and returns its JWT.
 pub async fn login(identifier: &str, password: &str) -> Result<AuthResponse, ApiError> {
     let response = Request::post(&endpoint("/api/v1/auth/login"))
         .json(&LoginBody {
@@ -58,6 +73,7 @@ pub async fn login(identifier: &str, password: &str) -> Result<AuthResponse, Api
     decode(response).await
 }
 
+/// Loads every post, following the server's page-based pagination.
 pub async fn list_posts() -> Result<PostPage, ApiError> {
     let mut posts = Vec::new();
     let mut page = 1u32;
@@ -88,6 +104,7 @@ pub async fn list_posts() -> Result<PostPage, ApiError> {
     }
 }
 
+/// Creates a post with the supplied bearer token.
 pub async fn create_post(token: &str, title: &str, content: &str) -> Result<Post, ApiError> {
     let response = Request::post(&endpoint("/api/v1/posts"))
         .header("Authorization", &format!("Bearer {token}"))
@@ -103,6 +120,9 @@ pub async fn create_post(token: &str, title: &str, content: &str) -> Result<Post
     decode(response).await
 }
 
+/// Updates a post with the supplied bearer token.
+///
+/// `None` leaves the corresponding field unchanged.
 pub async fn update_post(
     token: &str,
     id: i64,
@@ -120,6 +140,7 @@ pub async fn update_post(
     decode(response).await
 }
 
+/// Deletes a post with the supplied bearer token.
 pub async fn delete_post(token: &str, id: i64) -> Result<(), ApiError> {
     let response = Request::delete(&endpoint(&format!("/api/v1/posts/{id}")))
         .header("Authorization", &format!("Bearer {token}"))

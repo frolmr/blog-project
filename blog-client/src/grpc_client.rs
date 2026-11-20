@@ -1,3 +1,8 @@
+//! gRPC transport for [`crate::BlogClient`].
+//!
+//! This module is public for callers that want to use the gRPC transport
+//! directly. Most applications should prefer [`crate::BlogClient`].
+
 use chrono::{DateTime, Utc};
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
@@ -7,17 +12,23 @@ use crate::models::{AuthResponse, Post, PostPage, User};
 use crate::proto;
 use crate::proto::blog_service_client::BlogServiceClient;
 
+/// gRPC client for `blog.v1.BlogService`.
 #[derive(Debug, Clone)]
 pub struct GrpcClient {
     client: BlogServiceClient<Channel>,
 }
 
 impl GrpcClient {
+    /// Connects to a gRPC endpoint.
+    ///
+    /// The endpoint must include a scheme, for example
+    /// `http://127.0.0.1:50051`.
     pub async fn connect(endpoint: &str) -> Result<Self, BlogClientError> {
         let client = BlogServiceClient::connect(endpoint.to_owned()).await?;
         Ok(Self { client })
     }
 
+    /// Creates an account and returns the authentication response.
     pub async fn register(
         &mut self,
         username: &str,
@@ -37,6 +48,7 @@ impl GrpcClient {
         into_auth_response(response.user, response.access_token)
     }
 
+    /// Logs in with a username or email address.
     pub async fn login(
         &mut self,
         identifier: &str,
@@ -54,6 +66,7 @@ impl GrpcClient {
         into_auth_response(response.user, response.access_token)
     }
 
+    /// Creates a post using a bearer token.
     pub async fn create_post(
         &mut self,
         token: &str,
@@ -72,6 +85,7 @@ impl GrpcClient {
         into_post(response)
     }
 
+    /// Fetches one post by id.
     pub async fn get_post(&mut self, id: i64) -> Result<Post, BlogClientError> {
         let response = self
             .client
@@ -82,6 +96,9 @@ impl GrpcClient {
         into_post(response)
     }
 
+    /// Updates a post using a bearer token.
+    ///
+    /// `None` means the corresponding field is left unchanged.
     pub async fn update_post(
         &mut self,
         token: &str,
@@ -102,12 +119,14 @@ impl GrpcClient {
         into_post(response)
     }
 
+    /// Deletes a post using a bearer token.
     pub async fn delete_post(&mut self, token: &str, id: i64) -> Result<(), BlogClientError> {
         let request = authorized(proto::DeletePostRequest { id }, token)?;
         self.client.delete_post(request).await?;
         Ok(())
     }
 
+    /// Lists one page of posts. `page` is 1-based.
     pub async fn list_posts(
         &mut self,
         page: u32,

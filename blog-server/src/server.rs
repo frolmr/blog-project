@@ -1,3 +1,10 @@
+//! Transport startup and routing.
+//!
+//! [`run`] launches the Actix Web HTTP server and the tonic gRPC server on
+//! their configured addresses. Whichever stops first triggers a graceful stop
+//! of the other. [`configure_app`] defines every REST route and where bearer
+//! authentication is applied.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -20,6 +27,10 @@ use crate::presentation::http_handlers as handlers;
 use crate::presentation::middleware::jwt_validator;
 use crate::presentation::openapi::ApiDoc;
 
+/// Runs both servers until one of them exits or fails.
+///
+/// The gRPC address is parsed strictly; an invalid `BLOG_GRPC_ADDR` returns an
+/// error before any server starts.
 pub async fn run(
     config: Config,
     auth: Arc<AuthService>,
@@ -83,6 +94,10 @@ pub async fn run(
     Ok(())
 }
 
+/// Registers every REST route and the bearer middleware for write methods.
+///
+/// `GET /health`, registration, login, and post reads are public.
+/// Creating, updating, and deleting posts require a valid bearer token.
 pub fn configure_app(cfg: &mut web::ServiceConfig) {
     let auth_middleware = || HttpAuthentication::bearer(jwt_validator);
 
@@ -117,6 +132,7 @@ pub fn configure_app(cfg: &mut web::ServiceConfig) {
         );
 }
 
+/// Builds CORS middleware from `CORS_ALLOWED_ORIGIN`.
 fn cors(allowed_origin: Option<String>) -> Cors {
     let cors = Cors::default()
         .allowed_methods(vec!["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
@@ -129,6 +145,7 @@ fn cors(allowed_origin: Option<String>) -> Cors {
     }
 }
 
+/// Redirects `/` and `/swagger-ui` to the Swagger UI index.
 async fn redirect_to_docs() -> HttpResponse {
     HttpResponse::Found()
         .insert_header((header::LOCATION, "/swagger-ui/"))

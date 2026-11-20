@@ -1,14 +1,23 @@
+//! Registration and login use cases.
+//!
+//! Validation of usernames, emails, and passwords lives here so both the HTTP
+//! and gRPC presentations share identical rules.
+
 use std::sync::Arc;
 
 use crate::application::ports::{PasswordHasher, TokenIssuer, UserRepository};
 use crate::domain::{AppError, AppResult, NewUser, User};
 
+/// Result of a successful registration or login.
 #[derive(Debug, Clone)]
 pub struct AuthResult {
+    /// The authenticated user.
     pub user: User,
+    /// Newly issued JWT.
     pub access_token: String,
 }
 
+/// Application service for account creation and authentication.
 pub struct AuthService {
     users: Arc<dyn UserRepository>,
     passwords: Arc<dyn PasswordHasher>,
@@ -16,6 +25,7 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    /// Creates the service from its ports.
     pub fn new(
         users: Arc<dyn UserRepository>,
         passwords: Arc<dyn PasswordHasher>,
@@ -28,6 +38,12 @@ impl AuthService {
         }
     }
 
+    /// Registers a user and returns the new account plus a JWT.
+    ///
+    /// The username is trimmed and restricted to letters, digits, `_`, `-`,
+    /// and `.`; the email is trimmed and lowercased; the password must be at
+    /// least 8 characters. Duplicate usernames or emails return
+    /// [`AppError::UserAlreadyExists`].
     pub async fn register(
         &self,
         username: &str,
@@ -59,6 +75,11 @@ impl AuthService {
         Ok(AuthResult { user, access_token })
     }
 
+    /// Logs in with a username or email and returns a fresh JWT.
+    ///
+    /// Unknown accounts and wrong passwords both return
+    /// [`AppError::InvalidCredentials`] so callers cannot probe for valid
+    /// identifiers.
     pub async fn login(&self, identifier: &str, password: &str) -> AppResult<AuthResult> {
         let identifier = identifier.trim();
         if identifier.is_empty() || password.is_empty() {

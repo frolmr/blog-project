@@ -1,28 +1,45 @@
+//! Post CRUD, ownership checks, validation, and pagination.
+//!
+//! Both transports delegate to [`BlogService`], so authorization and
+//! pagination semantics are identical over HTTP and gRPC.
+
 use std::sync::Arc;
 
 use crate::application::ports::PostRepository;
 use crate::domain::{AppError, AppResult, NewPost, Post, PostUpdate};
 
+/// Page size used when the caller does not request one.
 pub const DEFAULT_PAGE_SIZE: u32 = 20;
+/// Largest page size the server will honor.
 pub const MAX_PAGE_SIZE: u32 = 100;
 
+/// One page of posts plus pagination metadata.
 #[derive(Debug, Clone)]
 pub struct PagedPosts {
+    /// Posts in this page, newest first.
     pub posts: Vec<Post>,
+    /// Total number of posts on the server.
     pub total: u32,
+    /// Effective 1-based page number.
     pub page: u32,
+    /// Effective page size.
     pub page_size: u32,
 }
 
+/// Application service for post use cases.
 pub struct BlogService {
     posts: Arc<dyn PostRepository>,
 }
 
 impl BlogService {
+    /// Creates the service from the post repository port.
     pub fn new(posts: Arc<dyn PostRepository>) -> Self {
         Self { posts }
     }
 
+    /// Creates a post for the given author.
+    ///
+    /// Title and content are trimmed and must not be empty.
     pub async fn create_post(
         &self,
         author_id: i64,
@@ -40,6 +57,7 @@ impl BlogService {
             .await
     }
 
+    /// Fetches a post by id, or returns [`AppError::PostNotFound`].
     pub async fn get_post(&self, id: i64) -> AppResult<Post> {
         self.posts
             .find_by_id(id)
@@ -47,6 +65,10 @@ impl BlogService {
             .ok_or(AppError::PostNotFound)
     }
 
+    /// Updates a post after checking that `actor_id` is its author.
+    ///
+    /// Returns [`AppError::Forbidden`] for other users and
+    /// [`AppError::Validation`] for blank supplied fields.
     pub async fn update_post(&self, id: i64, actor_id: i64, update: PostUpdate) -> AppResult<Post> {
         let post = self.get_post(id).await?;
         if post.author_id != actor_id {
@@ -77,6 +99,7 @@ impl BlogService {
             .ok_or(AppError::PostNotFound)
     }
 
+    /// Deletes a post after checking that `actor_id` is its author.
     pub async fn delete_post(&self, id: i64, actor_id: i64) -> AppResult<()> {
         let post = self.get_post(id).await?;
         if post.author_id != actor_id {
@@ -90,6 +113,10 @@ impl BlogService {
         }
     }
 
+    /// Lists posts newest first.
+    ///
+    /// A missing or zero `page` falls back to 1. A missing or zero `page_size`
+    /// falls back to [`DEFAULT_PAGE_SIZE`] and is capped at [`MAX_PAGE_SIZE`].
     pub async fn list_posts(
         &self,
         page: Option<u32>,

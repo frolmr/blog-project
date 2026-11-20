@@ -1,16 +1,31 @@
+//! Server configuration loaded from environment variables.
+//!
+//! `main` loads `.env` files before calling [`Config::from_env`]. Required
+//! variables produce a startup error when missing, while optional ones fall
+//! back to local-development defaults.
+
 use anyhow::{Context, Result, ensure};
 
 use crate::infrastructure::jwt::MIN_SECRET_LENGTH;
 
+/// Runtime configuration for the HTTP and gRPC servers.
 pub struct Config {
+    /// `BLOG_HTTP_ADDR`, default `127.0.0.1:8080`.
     pub http_addr: String,
+    /// `BLOG_GRPC_ADDR`, default `127.0.0.1:50051`.
     pub grpc_addr: String,
+    /// Required `DATABASE_URL`.
     pub database_url: String,
+    /// Required `JWT_SECRET`, at least [`MIN_SECRET_LENGTH`] bytes.
     pub jwt_secret: String,
+    /// Optional `CORS_ALLOWED_ORIGIN`; unset allows any origin.
     pub cors_allowed_origin: Option<String>,
 }
 
 impl Config {
+    /// Reads and validates configuration from the process environment.
+    ///
+    /// Missing or invalid required values return an error instead of panicking.
     pub fn from_env() -> Result<Self> {
         let jwt_secret = std::env::var("JWT_SECRET")
             .context("JWT_SECRET must be set (at least 32 characters)")?;

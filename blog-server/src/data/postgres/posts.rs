@@ -1,3 +1,5 @@
+//! PostgreSQL implementation of [`PostRepository`].
+
 use async_trait::async_trait;
 use sqlx::PgPool;
 
@@ -7,12 +9,14 @@ use crate::domain::{AppError, AppResult, NewPost, Post, PostUpdate};
 use super::error::is_foreign_key_violation;
 use super::rows::PostRow;
 
+/// Repository backed by the `posts` table.
 #[derive(Debug)]
 pub struct PgPostRepository {
     pool: PgPool,
 }
 
 impl PgPostRepository {
+    /// Creates a repository that uses the given connection pool.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }

@@ -1,3 +1,14 @@
+//! PostgreSQL repository integration tests.
+//!
+//! These tests use `#[sqlx::test]` to create throwaway databases and are marked
+//! `#[ignore]` because they require a running PostgreSQL instance. Run them
+//! with:
+//!
+//! ```bash
+//! DATABASE_URL='postgres://blog:blog@127.0.0.1:5432/blog?sslmode=disable' \
+//!   cargo test -p blog-server -- --ignored
+//! ```
+
 use sqlx::PgPool;
 
 use crate::application::ports::{PostRepository, UserRepository};

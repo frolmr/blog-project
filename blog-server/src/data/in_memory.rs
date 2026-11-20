@@ -1,3 +1,9 @@
+//! In-memory repository fakes used by unit tests.
+//!
+//! The store keeps users and posts behind `RwLock`s and hands out increasing
+//! ids. It is compiled only under `#[cfg(test)]` and mirrors the behavior of
+//! the PostgreSQL adapters closely enough for service tests.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 
@@ -8,6 +14,7 @@ use tokio::sync::RwLock;
 use crate::application::ports::{PostRepository, UserRepository};
 use crate::domain::{AppResult, NewPost, NewUser, Post, PostUpdate, User};
 
+/// Shared state behind the in-memory repositories.
 #[derive(Debug, Default)]
 pub struct InMemoryStore {
     users: RwLock<Vec<User>>,
@@ -17,6 +24,7 @@ pub struct InMemoryStore {
 }
 
 impl InMemoryStore {
+    /// Creates an empty store with ids starting at 1.
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             next_user_id: AtomicI64::new(1),
@@ -34,6 +42,7 @@ impl InMemoryStore {
     }
 }
 
+/// Creates a user and a post repository backed by one in-memory store.
 pub fn new_repositories() -> (Arc<dyn UserRepository>, Arc<dyn PostRepository>) {
     let store = InMemoryStore::new();
     (
@@ -44,6 +53,7 @@ pub fn new_repositories() -> (Arc<dyn UserRepository>, Arc<dyn PostRepository>) 
     )
 }
 
+/// In-memory [`UserRepository`].
 #[derive(Debug)]
 pub struct InMemoryUserRepository {
     store: Arc<InMemoryStore>,
@@ -86,6 +96,7 @@ impl UserRepository for InMemoryUserRepository {
     }
 }
 
+/// In-memory [`PostRepository`].
 #[derive(Debug)]
 pub struct InMemoryPostRepository {
     store: Arc<InMemoryStore>,

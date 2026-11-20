@@ -1,3 +1,5 @@
+//! Authenticated post creation form.
+
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
@@ -5,13 +7,18 @@ use crate::api::{self, ApiError};
 use crate::components::inputs::{on_input, on_textarea_input};
 use crate::models::Post;
 
+/// Inputs and callbacks for [`CreatePostForm`].
 #[derive(Properties, PartialEq)]
 pub struct CreatePostProps {
+    /// JWT used for the create request.
     pub token: String,
+    /// Invoked with the newly created post.
     pub on_created: Callback<Post>,
+    /// Invoked when the request fails.
     pub on_error: Callback<ApiError>,
 }
 
+/// Form that publishes a new post for the logged-in user.
 #[function_component(CreatePostForm)]
 pub fn create_post_form(props: &CreatePostProps) -> Html {
     let title = use_state(String::new);

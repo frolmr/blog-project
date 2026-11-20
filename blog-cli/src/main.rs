@@ -1,3 +1,16 @@
+//! Command-line client for the blog service.
+//!
+//! The CLI is a thin `clap` frontend over [`blog_client::BlogClient`]. It can
+//! use the REST API (default) or gRPC (`--grpc`), persists the JWT in
+//! `.blog_token`, and prints human-readable results.
+//!
+//! ```text
+//! blog-cli register --username alice --email alice@example.com --password secret123
+//! blog-cli create --title "Hello" --content "World"
+//! blog-cli list --limit 20 --offset 0
+//! blog-cli get --id 1 --grpc
+//! ```
+
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -10,6 +23,7 @@ const DEFAULT_HTTP_SERVER: &str = "127.0.0.1:8080";
 const DEFAULT_GRPC_SERVER: &str = "127.0.0.1:50051";
 const DEFAULT_TOKEN_FILE: &str = ".blog_token";
 
+/// Parsed command-line invocation.
 #[derive(Debug, Parser)]
 #[command(
     name = "blog-cli",
@@ -17,9 +31,13 @@ const DEFAULT_TOKEN_FILE: &str = ".blog_token";
     about = "Command-line client for the blog service"
 )]
 struct Cli {
+    /// Talk to the gRPC endpoint instead of the REST API.
     #[arg(long, global = true)]
     grpc: bool,
 
+    /// Server address or URL.
+    ///
+    /// Defaults to 127.0.0.1:8080 for HTTP and 127.0.0.1:50051 for gRPC.
     #[arg(long, global = true, value_name = "ADDRESS")]
     server: Option<String>,
 
@@ -27,60 +45,82 @@ struct Cli {
     command: Command,
 }
 
+/// Commands supported by the CLI.
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Create an account and save the returned token.
     Register {
+        /// Username for the new account.
         #[arg(long)]
         username: String,
 
+        /// Email address for the new account.
         #[arg(long)]
         email: String,
 
+        /// Password (at least 8 characters).
         #[arg(long)]
         password: String,
     },
 
+    /// Log in and save the returned token.
     Login {
+        /// Username or email address.
         #[arg(long)]
         username: String,
 
+        /// Account password.
         #[arg(long)]
         password: String,
     },
 
+    /// Create a post for the authenticated user.
     Create {
+        /// Post title.
         #[arg(long)]
         title: String,
 
+        /// Post body.
         #[arg(long)]
         content: String,
     },
 
+    /// Fetch one post by id.
     Get {
+        /// Post identifier.
         #[arg(long)]
         id: i64,
     },
 
+    /// Update a post owned by the authenticated user.
     Update {
+        /// Post identifier.
         #[arg(long)]
         id: i64,
 
+        /// New title; omit to leave it unchanged.
         #[arg(long)]
         title: Option<String>,
 
+        /// New content; omit to leave it unchanged.
         #[arg(long)]
         content: Option<String>,
     },
 
+    /// Delete a post owned by the authenticated user.
     Delete {
+        /// Post identifier.
         #[arg(long)]
         id: i64,
     },
 
+    /// List posts, newest first.
     List {
+        /// Maximum number of posts to return (1-100).
         #[arg(long, default_value_t = 20)]
         limit: u32,
 
+        /// Number of posts to skip; must be a multiple of `limit`.
         #[arg(long, default_value_t = 0)]
         offset: u32,
     },
