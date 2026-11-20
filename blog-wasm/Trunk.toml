@@ -3,5 +3,5 @@ target = "index.html"
 dist = "dist"
 
 [serve]
-port = 8080
+port = 8000
 open = false
